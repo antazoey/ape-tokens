@@ -85,6 +85,20 @@ def test_optional_value_passes_through_as_none(runner):
     assert result.output.strip() == "none"
 
 
+def test_prompt_does_not_double_wrap(runner):
+    captured = {}
+
+    @click.command()
+    @token_option(prompt=True)
+    def cli(token):
+        captured["token"] = token
+
+    result = runner.invoke(cli, input="USDC\n", standalone_mode=False)
+    assert result.exit_code == 0, result.output
+    assert isinstance(captured["token"], TokenArg)
+    assert repr(captured["token"]) == "TokenArg<USDC>"
+
+
 def test_unknown_symbol_raises_on_use(runner):
     @click.command()
     @token_option()

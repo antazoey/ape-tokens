@@ -19,6 +19,9 @@ class TokenArg:
     def __repr__(self) -> str:
         return f"TokenArg<{self._value}>"
 
+    def __str__(self) -> str:
+        return self._value
+
     def _resolve(self):
         if self._resolved is None:
             from ape_tokens import tokens
