@@ -3,21 +3,51 @@ from typing import Any
 import click
 
 
+class TokenArg:
+    """
+    Lazy proxy for a token argument from a Click option.
+
+    Resolution is deferred to first attribute access so the lookup happens inside
+    the connected-provider block when ``token_option`` is stacked with
+    ``ape.cli.network_option`` (token lookup requires an active network).
+    """
+
+    def __init__(self, value: str):
+        self._value = value
+        self._resolved: Any = None
+
+    def __repr__(self) -> str:
+        return f"TokenArg<{self._value}>"
+
+    def _resolve(self):
+        if self._resolved is None:
+            from ape_tokens import tokens
+
+            self._resolved = tokens[self._value]
+        return self._resolved
+
+    def __getattr__(self, name: str):
+        if name.startswith("_"):
+            raise AttributeError(name)
+        return getattr(self._resolve(), name)
+
+
 def token_option(*param_decls: str, **kwargs: Any):
     """
-    Click option that resolves a token symbol (or address) to a ``TokenInstance``.
+    Click option that wraps a token symbol (or address) in a :class:`TokenArg`.
 
     Defaults to ``--token`` when no parameter declarations are given. The default
-    callback looks the value up via ``ape_tokens.tokens[value]``; pass ``callback=``
-    to override. ``None`` values pass through unchanged so the option can be optional.
+    callback returns a :class:`TokenArg` that resolves on first attribute access,
+    so the lookup happens inside the command body (where a provider is connected
+    when stacked with ``ape.cli.network_option``). Pass ``callback=`` to override.
+    ``None`` values pass through unchanged so the option can be optional.
 
     Usage example::
 
         @click.command()
         @token_option("--asset-in")
         @token_option("--asset-out")
-        def swap(asset_in, asset_out):
-            ...
+        def swap(asset_in, asset_out): ...
     """
     if not param_decls:
         param_decls = ("--token",)
@@ -27,19 +57,9 @@ def token_option(*param_decls: str, **kwargs: Any):
 
     if "callback" not in kwargs:
 
-        def _resolve_token(_ctx, param, value):
-            if value is None:
-                return None
+        def _wrap_token(_ctx, _param, value):
+            return None if value is None else TokenArg(value)
 
-            from ape.exceptions import ConversionError
-
-            from ape_tokens import tokens
-
-            try:
-                return tokens[value]
-            except (KeyError, ConversionError) as err:
-                raise click.BadParameter(str(err), param=param) from err
-
-        kwargs["callback"] = _resolve_token
+        kwargs["callback"] = _wrap_token
 
     return click.option(*param_decls, **kwargs)

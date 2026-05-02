@@ -2,7 +2,7 @@ import click
 import pytest
 from ape.contracts import ContractInstance
 
-from ape_tokens.cli import token_option
+from ape_tokens.cli import TokenArg, token_option
 
 
 def test_default_option_name(runner):
@@ -32,8 +32,6 @@ def test_multiple_options_stack(runner):
     @token_option("--asset-in")
     @token_option("--asset-out")
     def cli(asset_in, asset_out):
-        assert isinstance(asset_in, ContractInstance)
-        assert isinstance(asset_out, ContractInstance)
         click.echo(f"{asset_in.symbol()},{asset_out.symbol()}")
 
     result = runner.invoke(cli, ["--asset-in", "USDC", "--asset-out", "DAI"])
@@ -87,7 +85,7 @@ def test_optional_value_passes_through_as_none(runner):
     assert result.output.strip() == "none"
 
 
-def test_unknown_symbol_raises_bad_parameter(runner):
+def test_unknown_symbol_raises_on_use(runner):
     @click.command()
     @token_option()
     def cli(token):
@@ -95,7 +93,6 @@ def test_unknown_symbol_raises_bad_parameter(runner):
 
     result = runner.invoke(cli, ["--token", "NOT_A_REAL_TOKEN_XYZ"])
     assert result.exit_code != 0
-    assert "Invalid value" in result.output
 
 
 def test_custom_callback_overrides_default(runner):
@@ -119,7 +116,9 @@ def test_resolves_to_contract_instance(runner):
 
     result = runner.invoke(cli, ["--token", "USDC"], standalone_mode=False)
     assert result.exit_code == 0, result.output
-    assert isinstance(captured["token"], ContractInstance)
+    assert isinstance(captured["token"], TokenArg)
+    assert repr(captured["token"]) == "TokenArg<USDC>"
+    assert isinstance(captured["token"]._resolve(), ContractInstance)
     assert captured["token"].symbol() == "USDC"
 
 
